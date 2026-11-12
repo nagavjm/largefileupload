@@ -34,6 +34,19 @@ public class BlobServiceClientFactory
             // Extract SharedKeyCredential for local SAS signing
             _sharedKeyCredential = ExtractSharedKeyCredential(connStr);
         }
+        else if (!string.IsNullOrWhiteSpace(_options.AccountName) && !string.IsNullOrWhiteSpace(_options.AccountKey))
+        {
+            _logger.LogInformation("Initializing BlobServiceClient using Azure Storage AccountName '{AccountName}' with AccountKey.", _options.AccountName);
+            var serviceUri = new Uri($"https://{_options.AccountName}.blob.core.windows.net");
+            _sharedKeyCredential = new StorageSharedKeyCredential(_options.AccountName, _options.AccountKey);
+            _lazyClient = new Lazy<BlobServiceClient>(() => new BlobServiceClient(serviceUri, _sharedKeyCredential));
+        }
+        else if (!string.IsNullOrWhiteSpace(_options.ConnectionString))
+        {
+            _logger.LogInformation("Initializing BlobServiceClient using custom Azure Storage ConnectionString.");
+            _lazyClient = new Lazy<BlobServiceClient>(() => new BlobServiceClient(_options.ConnectionString));
+            _sharedKeyCredential = ExtractSharedKeyCredential(_options.ConnectionString);
+        }
         else if (!string.IsNullOrWhiteSpace(_options.ServiceUri))
         {
             _logger.LogInformation("Initializing BlobServiceClient using DefaultAzureCredential for ServiceUri: {ServiceUri}", _options.ServiceUri);
@@ -41,15 +54,9 @@ public class BlobServiceClientFactory
             _lazyClient = new Lazy<BlobServiceClient>(() => new BlobServiceClient(new Uri(_options.ServiceUri), credential));
             _sharedKeyCredential = null;
         }
-        else if (!string.IsNullOrWhiteSpace(_options.ConnectionString))
-        {
-            _logger.LogInformation("Initializing BlobServiceClient using custom ConnectionString.");
-            _lazyClient = new Lazy<BlobServiceClient>(() => new BlobServiceClient(_options.ConnectionString));
-            _sharedKeyCredential = ExtractSharedKeyCredential(_options.ConnectionString);
-        }
         else
         {
-            throw new InvalidOperationException("Neither ServiceUri nor ConnectionString was configured for Azure Blob Storage.");
+            throw new InvalidOperationException("No valid Azure Storage configuration found. Configure 'ConnectionString', 'AccountName' + 'AccountKey', or 'ServiceUri'.");
         }
     }
 
@@ -57,7 +64,11 @@ public class BlobServiceClientFactory
 
     public StorageSharedKeyCredential? SharedKeyCredential => _sharedKeyCredential;
 
-    public bool IsLocalDevelopment => _options.UseAzurite || _sharedKeyCredential != null;
+    public bool IsLocalDevelopment => IsAzurite;
+
+    public bool IsAzurite => _options.UseAzurite 
+        || string.Equals(_options.ConnectionString, "UseDevelopmentStorage=true", StringComparison.OrdinalIgnoreCase)
+        || (_options.ServiceUri != null && _options.ServiceUri.Contains("127.0.0.1"));
 
     private static StorageSharedKeyCredential? ExtractSharedKeyCredential(string connectionString)
     {

@@ -67,6 +67,8 @@ public class UserDelegationSasService : IUserDelegationSasService
         var startsOn = DateTimeOffset.UtcNow.AddMinutes(-5); // Clock skew protection
         var expiresOn = DateTimeOffset.UtcNow.Add(duration);
 
+        var isAzurite = _clientFactory.IsAzurite;
+
         var sasBuilder = new BlobSasBuilder
         {
             BlobContainerName = _options.ContainerName,
@@ -74,30 +76,45 @@ public class UserDelegationSasService : IUserDelegationSasService
             Resource = "b",
             StartsOn = startsOn,
             ExpiresOn = expiresOn,
-            Protocol = _clientFactory.IsLocalDevelopment ? SasProtocol.None : SasProtocol.Https
+            Protocol = isAzurite ? SasProtocol.None : SasProtocol.Https
         };
 
         sasBuilder.SetPermissions(permissions);
 
-        if (_clientFactory.IsLocalDevelopment && _clientFactory.SharedKeyCredential != null)
+        if (_clientFactory.SharedKeyCredential != null)
         {
-            _logger.LogDebug("Signing SAS using local SharedKeyCredential for blob '{BlobName}'.", blobName);
+            if (isAzurite)
+            {
+                _logger.LogDebug("Signing SAS using local Azurite SharedKeyCredential for blob '{BlobName}'.", blobName);
+            }
+            else
+            {
+                _logger.LogInformation("Signing SAS using Azure Storage Account Key for blob '{BlobName}'.", blobName);
+            }
+
             var sasQueryParameters = sasBuilder.ToSasQueryParameters(_clientFactory.SharedKeyCredential);
             var uriBuilder = new BlobUriBuilder(blobClient.Uri)
             {
                 Sas = sasQueryParameters
             };
+
+            if (!isAzurite)
+            {
+                uriBuilder.Scheme = "https";
+            }
+
             return uriBuilder.ToUri();
         }
 
         // Production Mode: Microsoft Entra ID User Delegation Key
-        _logger.LogDebug("Signing SAS using Microsoft Entra ID User Delegation Key for blob '{BlobName}'.", blobName);
+        _logger.LogInformation("Signing SAS using Microsoft Entra ID User Delegation Key for blob '{BlobName}'.", blobName);
         var delegationKey = await GetOrFetchUserDelegationKeyAsync(client, cancellationToken);
         var userDelegationSas = sasBuilder.ToSasQueryParameters(delegationKey, client.AccountName);
 
         var prodUriBuilder = new BlobUriBuilder(blobClient.Uri)
         {
-            Sas = userDelegationSas
+            Sas = userDelegationSas,
+            Scheme = "https"
         };
 
         return prodUriBuilder.ToUri();

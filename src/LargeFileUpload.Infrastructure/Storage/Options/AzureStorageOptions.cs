@@ -8,6 +8,10 @@ public class AzureStorageOptions
 
     public string? ServiceUri { get; set; }
 
+    public string? AccountName { get; set; }
+
+    public string? AccountKey { get; set; }
+
     [Required]
     public string ContainerName { get; set; } = "uploads";
 

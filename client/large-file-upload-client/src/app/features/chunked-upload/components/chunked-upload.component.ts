@@ -598,9 +598,20 @@ export class ChunkedUploadComponent {
         this.state.status = 'Paused';
       } else {
         this.state.status = 'Failed';
-        this.errorMessage = err?.message || 'Chunked upload failed.';
+        this.errorMessage = this.extractErrorMessage(err);
       }
     }
+  }
+
+  private extractErrorMessage(err: any): string {
+    if (err?.error?.errors && typeof err.error.errors === 'object') {
+      const messages = Object.values(err.error.errors).flat();
+      if (messages.length > 0) return messages.join(' ');
+    }
+    if (err?.error?.detail) return err.error.detail;
+    if (err?.error?.title) return err.error.title;
+    if (typeof err?.error === 'string') return err.error;
+    return err?.message || 'Chunked upload failed.';
   }
 
   pauseUpload(): void {

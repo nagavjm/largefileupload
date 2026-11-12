@@ -17,6 +17,7 @@ export class BlockOrchestratorService {
 
   private abortController: AbortController | null = null;
   private isPaused = false;
+  private isCancelling = false;
   private activeUploadPromises = new Map<number, Promise<void>>();
 
   async initiateOrResume(
@@ -26,6 +27,7 @@ export class BlockOrchestratorService {
     onStateChange: (state: ChunkedUploadState) => void
   ): Promise<ChunkedUploadCommitResponse> {
     this.isPaused = false;
+    this.isCancelling = false;
     this.abortController = new AbortController();
 
     const contentType = file.type || 'application/octet-stream';
@@ -221,9 +223,16 @@ export class BlockOrchestratorService {
       this.abortController = null;
     }
 
-    if (uploadId) {
+    if (uploadId && !this.isCancelling) {
+      this.isCancelling = true;
       this.apiService.cancelChunkedUpload(uploadId, 'Cancelled by user').subscribe({
-        error: (e) => console.warn('Cancel API failed', e)
+        next: () => {
+          this.isCancelling = false;
+        },
+        error: (e) => {
+          this.isCancelling = false;
+          console.warn('Cancel API failed', e);
+        }
       });
     }
 
@@ -272,6 +281,7 @@ export class BlockOrchestratorService {
     maxRetries: number = 4
   ): Promise<void> {
     const chunkBlob = file.slice(chunk.startByte, chunk.endByte);
+    const chunkBuffer = await chunkBlob.arrayBuffer();
 
     while (chunk.retryCount <= maxRetries) {
       if (this.isPaused || this.abortController?.signal.aborted) {
@@ -284,8 +294,8 @@ export class BlockOrchestratorService {
       try {
         await blockBlobClient.stageBlock(
           chunk.blockId,
-          chunkBlob,
-          chunk.size,
+          chunkBuffer,
+          chunkBuffer.byteLength,
           {
             abortSignal: this.abortController?.signal
           }
@@ -300,6 +310,7 @@ export class BlockOrchestratorService {
           return;
         }
 
+        console.error(`stageBlock failed for block ${chunk.index}:`, err);
         chunk.retryCount++;
         chunk.status = 'failed';
         chunk.errorMessage = err?.message || 'Block upload failed.';

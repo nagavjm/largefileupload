@@ -158,6 +158,11 @@ public class UploadSession : BaseEntity, IAggregateRoot
 
     public void Cancel(string? reason = null)
     {
+        if (Status == UploadStatus.Cancelled)
+        {
+            return;
+        }
+
         EnsureNotFinished();
         Status = UploadStatus.Cancelled;
         ErrorMessage = reason ?? "Upload cancelled by user.";

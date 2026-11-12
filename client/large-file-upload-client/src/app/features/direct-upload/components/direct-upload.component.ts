@@ -339,11 +339,22 @@ export class DirectUploadComponent {
         this.errorMessage = 'Upload was cancelled.';
       } else {
         this.progress.status = 'Failed';
-        this.errorMessage = err?.error?.detail || err?.message || 'Direct upload to Azure Blob Storage failed.';
+        this.errorMessage = this.extractErrorMessage(err);
       }
     } finally {
       this.abortController = null;
     }
+  }
+
+  private extractErrorMessage(err: any): string {
+    if (err?.error?.errors && typeof err.error.errors === 'object') {
+      const messages = Object.values(err.error.errors).flat();
+      if (messages.length > 0) return messages.join(' ');
+    }
+    if (err?.error?.detail) return err.error.detail;
+    if (err?.error?.title) return err.error.title;
+    if (typeof err?.error === 'string') return err.error;
+    return err?.message || 'Direct upload to Azure Blob Storage failed.';
   }
 
   cancelUpload(): void {

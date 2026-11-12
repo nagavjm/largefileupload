@@ -29,9 +29,9 @@ public class AzureStorageOptions
     [
         ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp",
         ".pdf", ".docx", ".xlsx", ".pptx", ".txt", ".csv",
-        ".zip", ".tar", ".gz", ".7z", ".iso",
+        ".zip", ".tar", ".gz", ".7z", ".iso", ".rar", ".bz2", ".xz", ".tgz", ".cab",
         ".mp4", ".mkv", ".mov", ".avi", ".mp3", ".wav",
-        ".json", ".xml"
+        ".json", ".xml", ".exe"
     ];
 
     public string[] CorsAllowedOrigins { get; set; } =

@@ -254,6 +254,15 @@ public class ChunkedUploadService : IChunkedUploadService
         ValidateOwnership(session);
 
         var reason = request.Reason ?? "Cancelled by user";
+
+        if (session.Status == UploadStatus.Cancelled)
+        {
+            return new CancelUploadResponse(
+                UploadId: session.Id,
+                Status: session.Status.ToString(),
+                Reason: session.ErrorMessage ?? reason);
+        }
+
         session.Cancel(reason);
 
         // Purge uncommitted blocks / blob in Azure Storage
